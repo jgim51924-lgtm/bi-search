@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI 데이터셋 검색</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Malgun Gothic', '맑은 고딕', sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: white;
+            padding: 24px 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            letter-spacing: -0.5px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px 40px;
+        }
+
+        /* Upload Area */
+        .upload-area {
+            background: white;
+            border: 2px dashed #c5cae9;
+            border-radius: 16px;
+            padding: 60px 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 24px;
+        }
+
+        .upload-area:hover, .upload-area.dragover {
+            border-color: #3f51b5;
+            background: #e8eaf6;
+            transform: translateY(-2px);
+        }
+
+        .upload-area .icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .upload-area h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .upload-area p {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .upload-area.loaded {
+            border-color: #4caf50;
+            background: #e8f5e9;
+            padding: 20px 40px;
+            cursor: default;
+        }
+
+        .upload-area.loaded .icon { font-size: 28px; margin-bottom: 8px; }
+        .upload-area.loaded h2 { color: #2e7d32; font-size: 15px; }
+
+        /* Search Section */
+        .search-section {
+            display: none;
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+
+        .search-section.visible { display: block; }
+
+        .search-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-input-wrapper {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-input-wrapper .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: #999;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 42px;
+            font-size: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+
+        .search-input:focus {
+            border-color: #3f51b5;
+            box-shadow: 0 0 0 3px rgba(63,81,181,0.1);
+        }
+
+        .column-select {
+            padding: 12px 16px;
+            font-size: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            background: white;
+            cursor: pointer;
+            font-family: inherit;
+            min-width: 160px;
+        }
+
+        .column-select:focus { border-color: #3f51b5; }
+
+        .btn {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: #3f51b5;
+            color: white;
+        }
+
+        .btn-primary:hover { background: #303f9f; }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #555;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover { background: #e0e0e0; }
+
+        .btn-export {
+            background: #2e7d32;
+            color: white;
+        }
+
+        .btn-export:hover { background: #1b5e20; }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .stats-info {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .stats-info strong {
+            color: #3f51b5;
+            font-size: 16px;
+        }
+
+        /* Table */
+        .table-container {
+            display: none;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        .table-container.visible { display: block; }
+
+        .table-scroll {
+            overflow-x: auto;
+            max-height: 65vh;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        thead th {
+            background: #1a1a2e;
+            color: white;
+            padding: 14px 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            white-space: nowrap;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+
+        thead th:hover { background: #0f3460; }
+
+        thead th .sort-arrow {
+            margin-left: 4px;
+            opacity: 0.4;
+            font-size: 11px;
+        }
+
+        thead th.sorted .sort-arrow { opacity: 1; }
+
+        tbody tr {
+            transition: background 0.15s;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover { background: #e8eaf6; }
+        tbody tr:nth-child(even) { background: #fafafa; }
+        tbody tr:nth-child(even):hover { background: #e8eaf6; }
+
+        tbody td {
+            padding: 11px 16px;
+            max-width: 350px;
+            word-break: break-word;
+            line-height: 1.5;
+            vertical-align: top;
+            border-right: 1px solid #f0f0f0;
+        }
+
+        /* Row number column */
+        .row-num {
+            color: #999;
+            font-size: 12px;
+            text-align: center;
+            min-width: 50px;
+            font-weight: 500;
+        }
+
+        /* Highlight */
+        .highlight {
+            background: #fff176;
+            padding: 1px 2px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            padding: 20px;
+            flex-wrap: wrap;
+        }
+
+        .page-btn {
+            min-width: 38px;
+            height: 38px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+        }
+
+        .page-btn:hover { background: #e8eaf6; border-color: #3f51b5; }
+
+        .page-btn.active {
+            background: #3f51b5;
+            color: white;
+            border-color: #3f51b5;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .page-dots {
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            color: #999;
+        }
+
+        /* Per page selector */
+        .per-page {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        .per-page select {
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        /* Detail Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 16px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            background: #1a1a2e;
+            color: white;
+            padding: 20px 24px;
+            border-radius: 16px 16px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 { font-size: 16px; }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .modal-close:hover { opacity: 1; }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .detail-item {
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-item:last-child { border-bottom: none; }
+
+        .detail-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #3f51b5;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            line-height: 1.7;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #f8f9fa;
+            padding: 10px 14px;
+            border-radius: 8px;
+        }
+
+        /* Loading */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .loading.visible { display: block; }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #3f51b5;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 16px; }
+            .header { padding: 16px 20px; }
+            .search-row { flex-direction: column; }
+            .search-input-wrapper { min-width: 100%; }
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #333;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 2000;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+
+        /* Scrollbar */
+        .table-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .table-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #bbb; border-radius: 4px; }
+        .table-scroll::-webkit-scrollbar-thumb:hover { background: #999; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>BI 데이터셋 검색 시스템</h1>
+    <p>CSV / Excel 파일을 업로드하여 데이터를 검색하고 필터링하세요</p>
+</div>
+
+<div class="container">
+    <!-- Auto-load notice -->
+    <div class="loading" id="autoLoading" style="display:block;padding:30px;">
+        <div class="spinner"></div>
+        <p>데이터를 불러오는 중...</p>
+    </div>
+
+    <!-- Upload Area (fallback) -->
+    <div class="upload-area" id="uploadArea" style="display:none;">
+        <div class="icon">📂</div>
+        <h2>파일을 여기에 끌어다 놓거나 클릭하여 선택하세요</h2>
+        <p>CSV, Excel(.xlsx, .xls) 파일을 지원합니다 · 한글 인코딩 자동 감지</p>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none">
+    </div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>데이터를 처리하는 중...</p>
+    </div>
+
+    <!-- Search Section -->
+    <div class="search-section" id="searchSection">
+        <div class="search-row">
+            <div class="search-input-wrapper">
+                <span class="search-icon">🔍</span>
+                <input type="text" class="search-input" id="searchInput" placeholder="검색어를 입력하세요... (Enter로 검색)" autocomplete="off">
+            </div>
+            <select class="column-select" id="columnSelect">
+                <option value="all">전체 컬럼 검색</option>
+            </select>
+            <button class="btn btn-primary" id="searchBtn">검색</button>
+            <button class="btn btn-secondary" id="resetBtn">초기화</button>
+            <button class="btn btn-export" id="exportBtn">📥 결과 내보내기</button>
+        </div>
+        <div class="stats-bar">
+            <div class="stats-info" id="statsInfo">
+                총 <strong>0</strong>건의 데이터
+            </div>
+            <div class="per-page">
+                <span>페이지당</span>
+                <select id="perPageSelect">
+                    <option value="30">30건</option>
+                    <option value="50" selected>50건</option>
+                    <option value="100">100건</option>
+                    <option value="200">200건</option>
+                    <option value="500">500건</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container" id="tableContainer">
+        <div class="table-scroll">
+            <table id="dataTable">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>상세 정보</h3>
+            <button class="modal-close" id="modalClose">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody"></div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+(function() {
+    // State
+    let allData = [];
+    let filteredData = [];
+    let headers = [];
+    let currentPage = 1;
+    let perPage = 50;
+    let sortCol = -1;
+    let sortAsc = true;
+    let searchTerm = '';
+    let searchColumn = 'all';
+
+    // DOM Elements
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const loading = document.getElementById('loading');
+    const searchSection = document.getElementById('searchSection');
+    const searchInput = document.getElementById('searchInput');
+    const columnSelect = document.getElementById('columnSelect');
+    const searchBtn = document.getElementById('searchBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const statsInfo = document.getElementById('statsInfo');
+    const tableContainer = document.getElementById('tableContainer');
+    const tableHead = document.getElementById('tableHead');
+    const tableBody = document.getElementById('tableBody');
+    const pagination = document.getElementById('pagination');
+    const perPageSelect = document.getElementById('perPageSelect');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modalBody = document.getElementById('modalBody');
+    const modalClose = document.getElementById('modalClose');
+
+    // File Upload Events
+    uploadArea.addEventListener('click', (e) => {
+        // Don't open file dialog if clicking on sheet selector
+        if (e.target.closest('.sheet-selector')) return;
+        fileInput.click();
+    });
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) handleFile(e.target.files[0]);
+    });
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    });
+
+    // Search Events
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') doSearch();
+    });
+    searchBtn.addEventListener('click', doSearch);
+    resetBtn.addEventListener('click', doReset);
+    exportBtn.addEventListener('click', doExport);
+    perPageSelect.addEventListener('change', () => {
+        perPage = parseInt(perPageSelect.value);
+        currentPage = 1;
+        renderTable();
+    });
+
+    // Modal Events
+    modalClose.addEventListener('click', () => modalOverlay.classList.remove('visible'));
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) modalOverlay.classList.remove('visible');
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') modalOverlay.classList.remove('visible');
+    });
+
+    // Handle File
+    async function handleFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+            showToast('CSV 또는 Excel(.xlsx, .xls) 파일만 업로드할 수 있습니다.');
+            return;
+        }
+
+        loading.classList.add('visible');
+        uploadArea.style.display = 'none';
+
+        try {
+            if (ext === 'csv') {
+                const text = await readFileWithEncoding(file);
+                parseCSV(text);
+            } else {
+                await parseExcel(file);
+            }
+
+            uploadArea.style.display = 'block';
+            uploadArea.classList.add('loaded');
+            uploadArea.innerHTML = `
+                <div class="icon">✅</div>
+                <h2>${escapeHtml(file.name)} (${formatNumber(allData.length)}건 로드 완료)</h2>
+            `;
+
+            // If Excel has multiple sheets, show sheet selector
+            if (window._sheetNames && window._sheetNames.length > 1) {
+                const sheetSelector = document.createElement('div');
+                sheetSelector.className = 'sheet-selector';
+                sheetSelector.style.cssText = 'margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;';
+                sheetSelector.innerHTML = '<span style="font-size:13px;color:#555;">시트 선택:</span>';
+                const sel = document.createElement('select');
+                sel.style.cssText = 'padding:6px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer;';
+                window._sheetNames.forEach((name, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = idx;
+                    opt.textContent = name;
+                    if (idx === window._currentSheetIdx) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                sel.addEventListener('click', (e) => e.stopPropagation());
+                sel.addEventListener('change', () => {
+                    window._currentSheetIdx = parseInt(sel.value);
+                    loadSheetData(window._workbookCache, window._sheetNames[window._currentSheetIdx]);
+                    setupAfterLoad();
+                    showToast(`"${window._sheetNames[window._currentSheetIdx]}" 시트: ${formatNumber(allData.length)}건 로드 완료`);
+                });
+                sheetSelector.addEventListener('click', (e) => e.stopPropagation());
+                sheetSelector.appendChild(sel);
+                uploadArea.appendChild(sheetSelector);
+            }
+
+            setupAfterLoad();
+            showToast(`${formatNumber(allData.length)}건의 데이터가 로드되었습니다.`);
+        } catch (err) {
+            showToast('파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+            uploadArea.style.display = 'block';
+        } finally {
+            loading.classList.remove('visible');
+        }
+    }
+
+    function setupAfterLoad() {
+        searchSection.classList.add('visible');
+        tableContainer.classList.add('visible');
+
+        // Populate column select
+        columnSelect.innerHTML = '<option value="all">전체 컬럼 검색</option>';
+        headers.forEach((h, i) => {
+            if (h.trim()) {
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = h;
+                columnSelect.appendChild(opt);
+            }
+        });
+
+        filteredData = [...allData];
+        currentPage = 1;
+        sortCol = -1;
+        renderTable();
+        searchInput.focus();
+    }
+
+    // Read file with encoding detection
+    function readFileWithEncoding(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const bytes = new Uint8Array(e.target.result);
+
+                // Try UTF-8 first (with BOM detection)
+                let text;
+                try {
+                    const decoder = new TextDecoder('utf-8', { fatal: true });
+                    text = decoder.decode(bytes);
+                    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                    if (!text.includes('\uFFFD')) {
+                        resolve(text);
+                        return;
+                    }
+                } catch(e) {}
+
+                // Try EUC-KR / CP949
+                try {
+                    const decoder = new TextDecoder('euc-kr', { fatal: false });
+                    text = decoder.decode(bytes);
+                    resolve(text);
+                    return;
+                } catch(e) {}
+
+                // Fallback
+                const fallbackReader = new FileReader();
+                fallbackReader.onload = () => resolve(fallbackReader.result);
+                fallbackReader.onerror = () => reject(new Error('파일 읽기 실패'));
+                fallbackReader.readAsText(file);
+            };
+            reader.onerror = () => reject(new Error('파일 읽기 실패'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    // Parse Excel file
+    function parseExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellText: true, cellDates: true });
+
+                    window._workbookCache = workbook;
+                    window._sheetNames = workbook.SheetNames;
+                    window._currentSheetIdx = 0;
+
+                    loadSheetData(workbook, workbook.SheetNames[0]);
+                    resolve();
+                } catch (err) {
+                    reject(new Error('Excel 파일 파싱 실패: ' + err.message));
+                }
+            };
+            reader.onerror = () => reject(new Error('파일 읽기 실패'));
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    function loadSheetData(workbook, sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+            const nonEmpty = (jsonData[i] || []).filter(c => c !== undefined && c !== null && String(c).trim() !== '').length;
+            if (nonEmpty >= 3) {
+                headerIdx = i;
+                break;
+            }
+        }
+
+        headers = (jsonData[headerIdx] || []).map(h => String(h).trim());
+        while (headers.length > 0 && !headers[headers.length - 1]) {
+            headers.pop();
+        }
+
+        allData = [];
+        for (let i = headerIdx + 1; i < jsonData.length; i++) {
+            const rawRow = jsonData[i] || [];
+            const row = [];
+            for (let j = 0; j < headers.length; j++) {
+                row.push(rawRow[j] !== undefined && rawRow[j] !== null ? String(rawRow[j]) : '');
+            }
+            if (row.every(c => !c.trim())) continue;
+            allData.push(row);
+        }
+    }
+
+    // Parse CSV (handles quoted fields with newlines/commas)
+    function parseCSV(text) {
+        const rows = [];
+        let current = '';
+        let inQuotes = false;
+        const lines = [];
+
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === '"') {
+                if (inQuotes && i + 1 < text.length && text[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (ch === ',' && !inQuotes) {
+                rows.push(current);
+                current = '';
+            } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+                if (ch === '\r' && i + 1 < text.length && text[i + 1] === '\n') i++;
+                rows.push(current);
+                current = '';
+                if (rows.length > 0 && rows.some(r => r.trim())) {
+                    lines.push([...rows]);
+                }
+                rows.length = 0;
+            } else {
+                current += ch;
+            }
+        }
+        rows.push(current);
+        if (rows.length > 0 && rows.some(r => r.trim())) {
+            lines.push([...rows]);
+        }
+
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(5, lines.length); i++) {
+            const nonEmpty = lines[i].filter(c => c.trim()).length;
+            if (nonEmpty >= 3) {
+                headerIdx = i;
+                break;
+            }
+        }
+
+        headers = lines[headerIdx].map(h => h.trim());
+        while (headers.length > 0 && !headers[headers.length - 1]) {
+            headers.pop();
+        }
+
+        allData = [];
+        for (let i = headerIdx + 1; i < lines.length; i++) {
+            const row = lines[i].slice(0, headers.length);
+            if (row.every(c => !c.trim())) continue;
+            while (row.length < headers.length) row.push('');
+            allData.push(row);
+        }
+    }
+
+    // Search
+    function doSearch() {
+        searchTerm = searchInput.value.trim().toLowerCase();
+        searchColumn = columnSelect.value;
+        currentPage = 1;
+
+        if (!searchTerm) {
+            filteredData = [...allData];
+        } else {
+            filteredData = allData.filter(row => {
+                if (searchColumn === 'all') {
+                    return row.some(cell => cell.toLowerCase().includes(searchTerm));
+                } else {
+                    const colIdx = parseInt(searchColumn);
+                    return row[colIdx] && row[colIdx].toLowerCase().includes(searchTerm);
+                }
+            });
+        }
+
+        sortCol = -1;
+        renderTable();
+
+        if (searchTerm) {
+            showToast(`"${searchInput.value.trim()}" 검색 결과: ${formatNumber(filteredData.length)}건`);
+        }
+    }
+
+    // Reset
+    function doReset() {
+        searchInput.value = '';
+        searchTerm = '';
+        searchColumn = 'all';
+        columnSelect.value = 'all';
+        sortCol = -1;
+        currentPage = 1;
+        filteredData = [...allData];
+        renderTable();
+        searchInput.focus();
+    }
+
+    // Export filtered results
+    function doExport() {
+        if (filteredData.length === 0) {
+            showToast('내보낼 데이터가 없습니다.');
+            return;
+        }
+
+        let csv = '\uFEFF';
+        csv += headers.map(h => `"${h.replace(/"/g, '""')}"`).join(',') + '\n';
+        filteredData.forEach(row => {
+            csv += row.map(c => `"${c.replace(/"/g, '""')}"`).join(',') + '\n';
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `검색결과_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`${formatNumber(filteredData.length)}건의 결과를 내보냈습니다.`);
+    }
+
+    // Render Table
+    function renderTable() {
+        if (searchTerm) {
+            statsInfo.innerHTML = `검색 결과: <strong>${formatNumber(filteredData.length)}</strong>건 / 전체 ${formatNumber(allData.length)}건`;
+        } else {
+            statsInfo.innerHTML = `총 <strong>${formatNumber(allData.length)}</strong>건의 데이터`;
+        }
+
+        let headHtml = '<tr><th class="row-num" style="cursor:default">No.</th>';
+        headers.forEach((h, i) => {
+            if (!h) return;
+            const isSorted = sortCol === i;
+            const arrow = isSorted ? (sortAsc ? '▲' : '▼') : '↕';
+            headHtml += `<th class="${isSorted ? 'sorted' : ''}" data-col="${i}">${escapeHtml(h)} <span class="sort-arrow">${arrow}</span></th>`;
+        });
+        headHtml += '</tr>';
+        tableHead.innerHTML = headHtml;
+
+        tableHead.querySelectorAll('th[data-col]').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = parseInt(th.dataset.col);
+                if (sortCol === col) {
+                    sortAsc = !sortAsc;
+                } else {
+                    sortCol = col;
+                    sortAsc = true;
+                }
+                filteredData.sort((a, b) => {
+                    const va = (a[col] || '').toLowerCase();
+                    const vb = (b[col] || '').toLowerCase();
+                    if (va < vb) return sortAsc ? -1 : 1;
+                    if (va > vb) return sortAsc ? 1 : -1;
+                    return 0;
+                });
+                currentPage = 1;
+                renderTable();
+            });
+        });
+
+        const start = (currentPage - 1) * perPage;
+        const end = Math.min(start + perPage, filteredData.length);
+        const pageData = filteredData.slice(start, end);
+
+        let bodyHtml = '';
+        if (pageData.length === 0) {
+            bodyHtml = `<tr><td colspan="${headers.filter(h => h).length + 1}" style="text-align:center;padding:40px;color:#999;font-size:15px;">검색 결과가 없습니다.</td></tr>`;
+        } else {
+            pageData.forEach((row, idx) => {
+                bodyHtml += `<tr data-row="${start + idx}">`;
+                bodyHtml += `<td class="row-num">${start + idx + 1}</td>`;
+                headers.forEach((h, colIdx) => {
+                    if (!h) return;
+                    let cellText = row[colIdx] || '';
+                    let displayText = escapeHtml(cellText);
+
+                    const maxLen = 150;
+                    if (cellText.length > maxLen) {
+                        displayText = escapeHtml(cellText.slice(0, maxLen)) + '<span style="color:#999">...</span>';
+                    }
+
+                    if (searchTerm && (searchColumn === 'all' || parseInt(searchColumn) === colIdx)) {
+                        displayText = highlightText(displayText, searchTerm);
+                    }
+
+                    bodyHtml += `<td>${displayText}</td>`;
+                });
+                bodyHtml += '</tr>';
+            });
+        }
+        tableBody.innerHTML = bodyHtml;
+
+        tableBody.querySelectorAll('tr[data-row]').forEach(tr => {
+            tr.addEventListener('click', () => {
+                const rowIdx = parseInt(tr.dataset.row);
+                showDetail(filteredData[rowIdx]);
+            });
+            tr.style.cursor = 'pointer';
+        });
+
+        renderPagination();
+    }
+
+    // Pagination
+    function renderPagination() {
+        const totalPages = Math.ceil(filteredData.length / perPage);
+        if (totalPages <= 1) { pagination.innerHTML = ''; return; }
+
+        let html = '';
+        html += `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} data-page="${currentPage - 1}">◀</button>`;
+
+        const maxVisible = 7;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+        if (endPage - startPage < maxVisible - 1) {
+            startPage = Math.max(1, endPage - maxVisible + 1);
+        }
+
+        if (startPage > 1) {
+            html += `<button class="page-btn" data-page="1">1</button>`;
+            if (startPage > 2) html += '<span class="page-dots">...</span>';
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) html += '<span class="page-dots">...</span>';
+            html += `<button class="page-btn" data-page="${totalPages}">${totalPages}</button>`;
+        }
+
+        html += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} data-page="${currentPage + 1}">▶</button>`;
+
+        pagination.innerHTML = html;
+
+        pagination.querySelectorAll('.page-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = parseInt(btn.dataset.page);
+                if (page >= 1 && page <= totalPages) {
+                    currentPage = page;
+                    renderTable();
+                    tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    }
+
+    // Show Detail Modal
+    function showDetail(row) {
+        let html = '';
+        headers.forEach((h, i) => {
+            if (!h) return;
+            const val = row[i] || '';
+            if (!val.trim()) return;
+            html += `
+                <div class="detail-item">
+                    <div class="detail-label">${escapeHtml(h)}</div>
+                    <div class="detail-value">${escapeHtml(val)}</div>
+                </div>
+            `;
+        });
+        if (!html) html = '<p style="color:#999;text-align:center">데이터가 없습니다.</p>';
+        modalBody.innerHTML = html;
+        modalOverlay.classList.add('visible');
+    }
+
+    // Helpers
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function highlightText(html, term) {
+        if (!term) return html;
+        const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
+        return html.replace(regex, '<span class="highlight">$1</span>');
+    }
+
+    function escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function formatNumber(n) {
+        return n.toLocaleString('ko-KR');
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // ===== Auto-load data files on page open =====
+    const AUTO_DATA_FILES = ['data.csv', 'data.xlsx', 'data.xls'];
+
+    async function tryAutoLoad() {
+        const autoLoading = document.getElementById('autoLoading');
+
+        for (const filename of AUTO_DATA_FILES) {
+            try {
+                const resp = await fetch(filename);
+                if (!resp.ok) continue;
+
+                const ext = filename.split('.').pop().toLowerCase();
+
+                if (ext === 'csv') {
+                    const buf = await resp.arrayBuffer();
+                    const bytes = new Uint8Array(buf);
+                    let text;
+                    try {
+                        const decoder = new TextDecoder('utf-8', { fatal: true });
+                        text = decoder.decode(bytes);
+                        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+                        if (text.includes('\uFFFD')) throw new Error('wrong encoding');
+                    } catch(e) {
+                        const decoder = new TextDecoder('euc-kr', { fatal: false });
+                        text = decoder.decode(bytes);
+                    }
+                    parseCSV(text);
+                } else {
+                    const buf = await resp.arrayBuffer();
+                    const data = new Uint8Array(buf);
+                    const workbook = XLSX.read(data, { type: 'array', cellText: true, cellDates: true });
+                    window._workbookCache = workbook;
+                    window._sheetNames = workbook.SheetNames;
+                    window._currentSheetIdx = 0;
+                    loadSheetData(workbook, workbook.SheetNames[0]);
+                }
+
+                // Success - show loaded state
+                autoLoading.style.display = 'none';
+                uploadArea.style.display = 'block';
+                uploadArea.classList.add('loaded');
+                let loadedHtml = `
+                    <div class="icon">✅</div>
+                    <h2>데이터 자동 로드 완료 (${formatNumber(allData.length)}건)</h2>
+                `;
+
+                // Sheet selector for Excel
+                if (window._sheetNames && window._sheetNames.length > 1) {
+                    loadedHtml += '<div class="sheet-selector" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;">';
+                    loadedHtml += '<span style="font-size:13px;color:#555;">시트 선택:</span>';
+                    loadedHtml += '<select id="autoSheetSelect" style="padding:6px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer;">';
+                    window._sheetNames.forEach((name, idx) => {
+                        loadedHtml += `<option value="${idx}" ${idx === 0 ? 'selected' : ''}>${escapeHtml(name)}</option>`;
+                    });
+                    loadedHtml += '</select></div>';
+                }
+
+                uploadArea.innerHTML = loadedHtml;
+
+                // Sheet selector event
+                const autoSheetSel = document.getElementById('autoSheetSelect');
+                if (autoSheetSel) {
+                    autoSheetSel.addEventListener('click', (e) => e.stopPropagation());
+                    autoSheetSel.addEventListener('change', () => {
+                        window._currentSheetIdx = parseInt(autoSheetSel.value);
+                        loadSheetData(window._workbookCache, window._sheetNames[window._currentSheetIdx]);
+                        setupAfterLoad();
+                        showToast(`"${window._sheetNames[window._currentSheetIdx]}" 시트: ${formatNumber(allData.length)}건`);
+                    });
+                }
+
+                setupAfterLoad();
+                showToast(`데이터 ${formatNumber(allData.length)}건이 자동으로 로드되었습니다.`);
+                return; // Successfully loaded
+            } catch(e) {
+                // This file didn't work, try next
+                continue;
+            }
+        }
+
+        // No auto-load file found, show upload area
+        autoLoading.style.display = 'none';
+        uploadArea.style.display = 'block';
+    }
+
+    // Try auto-load on page open
+    tryAutoLoad();
+})();
+</script>
+
+</body>
+</html>
