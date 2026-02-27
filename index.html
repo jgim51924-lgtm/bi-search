@@ -229,7 +229,7 @@
     function setupAfterLoad() {
         searchSection.classList.add('visible'); tableContainer.classList.add('visible');
         columnSelect.innerHTML = '<option value="all">전체 컬럼 검색</option>';
-        headers.forEach((h, i) => { if (h.trim()) { const opt = document.createElement('option'); opt.value = i; opt.textContent = h; columnSelect.appendChild(opt); } });
+        headers.forEach((h, i) => { if (h.trim()) { const opt = document.createElement('option'); opt.value = i; opt.textContent = getDisplayHeader(h); columnSelect.appendChild(opt); } });
         filteredData = [...allData]; currentPage = 1; sortCol = -1; renderTable(); searchInput.focus();
     }
 
@@ -294,7 +294,7 @@
         if (searchTerm) statsInfo.innerHTML = `검색 결과: <strong>${formatNumber(filteredData.length)}</strong>건 / 전체 ${formatNumber(allData.length)}건`;
         else statsInfo.innerHTML = `총 <strong>${formatNumber(allData.length)}</strong>건의 데이터`;
         let hh = '<tr><th class="row-num" style="cursor:default">No.</th>';
-        headers.forEach((h, i) => { if (!h) return; const s = sortCol === i; const arrow = s ? (sortAsc ? '▲' : '▼') : '↕'; hh += `<th class="${s ? 'sorted' : ''}" data-col="${i}">${escapeHtml(h)} <span class="sort-arrow">${arrow}</span></th>`; });
+        headers.forEach((h, i) => { if (!h) return; const s = sortCol === i; const arrow = s ? (sortAsc ? '▲' : '▼') : '↕'; hh += `<th class="${s ? 'sorted' : ''}" data-col="${i}">${escapeHtml(getDisplayHeader(h))} <span class="sort-arrow">${arrow}</span></th>`; });
         hh += '</tr>'; tableHead.innerHTML = hh;
         tableHead.querySelectorAll('th[data-col]').forEach(th => { th.addEventListener('click', () => { const col = parseInt(th.dataset.col); if (sortCol === col) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; } filteredData.sort((a, b) => { const va = (a[col] || '').toLowerCase(), vb = (b[col] || '').toLowerCase(); if (va < vb) return sortAsc ? -1 : 1; if (va > vb) return sortAsc ? 1 : -1; return 0; }); currentPage = 1; renderTable(); }); });
         const start = (currentPage - 1) * perPage, end = Math.min(start + perPage, filteredData.length), pageData = filteredData.slice(start, end);
@@ -319,11 +319,22 @@
     }
 
     function showDetail(row) {
-        let h = ''; headers.forEach((hd, i) => { if (!hd) return; const val = row[i] || ''; if (!val.trim()) return; h += `<div class="detail-item"><div class="detail-label">${escapeHtml(hd)}</div><div class="detail-value">${escapeHtml(val)}</div></div>`; });
+        let h = ''; headers.forEach((hd, i) => { if (!hd) return; const val = row[i] || ''; if (!val.trim()) return; h += `<div class="detail-item"><div class="detail-label">${escapeHtml(getDisplayHeader(hd))}</div><div class="detail-value">${escapeHtml(val)}</div></div>`; });
         if (!h) h = '<p style="color:#999;text-align:center">데이터가 없습니다.</p>'; modalBody.innerHTML = h; modalOverlay.classList.add('visible');
     }
 
     function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function getDisplayHeader(header) {
+        const map = {
+            '프로젝트경로': '데이터 경로',
+            '데이터원본명': '데이터명',
+            '데이터원본_폴더': '데이터 폴더',
+            '산식': '함수(계산된필드)',
+            '계산된필드': '함수(계산된필드)',
+            '계산필드': '함수(계산된필드)'
+        };
+        return map[header] || header;
+    }
     function highlightText(html, term) { if (!term) return html; return html.replace(new RegExp(`(${escapeRegex(term)})`, 'gi'), '<span class="highlight">$1</span>'); }
     function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
     function formatNumber(n) { return n.toLocaleString('ko-KR'); }
@@ -358,5 +369,3 @@
 </script>
 </body>
 </html>
-
-
