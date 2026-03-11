@@ -92,6 +92,15 @@
 
         .upload-area.loaded .icon { font-size: 28px; margin-bottom: 8px; }
         .upload-area.loaded h2 { color: #2e7d32; font-size: 15px; }
+        .upload-area.loaded .loaded-character {
+            display: block;
+            width: auto;
+            height: auto;
+            margin: 0 auto 8px;
+            font-size: 34px;
+            line-height: 1;
+            color: #2e7d32;
+        }
 
         /* Search Section */
         .search-section {
@@ -156,6 +165,69 @@
         }
 
         .column-select:focus { border-color: #3f51b5; }
+
+        /* Sheet selector */
+        .sheet-selector {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sheet-selector-label {
+            font-size: 13px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .sheet-selector-help {
+            font-size: 12px;
+            color: #7a7a7a;
+            margin-top: -4px;
+        }
+
+        .sheet-box-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 8px;
+            max-width: 100%;
+        }
+
+        .sheet-box-btn {
+            min-width: 120px;
+            padding: 9px 14px;
+            border: 1px solid #c5cae9;
+            border-radius: 10px;
+            background: #fff;
+            color: #3949ab;
+            font-size: 13px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+
+        .sheet-box-btn:hover {
+            border-color: #3f51b5;
+            background: #eef1ff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.09);
+        }
+
+        .sheet-box-btn:focus-visible {
+            outline: 2px solid #3f51b5;
+            outline-offset: 2px;
+        }
+
+        .sheet-box-btn.active {
+            border-color: #3f51b5;
+            background: #3f51b5;
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(63,81,181,0.25);
+        }
 
         .btn {
             padding: 12px 24px;
@@ -690,36 +762,10 @@
             uploadArea.style.display = 'block';
             uploadArea.classList.add('loaded');
             uploadArea.innerHTML = `
-                <div class="icon">✅</div>
-                <h2>${escapeHtml(file.name)} (${formatNumber(allData.length)}건 로드 완료)</h2>
+                <div class="loaded-character" aria-label="검색 아이콘">🔍</div>
             `;
 
-            // If Excel has multiple sheets, show sheet selector
-            if (window._sheetNames && window._sheetNames.length > 1) {
-                const sheetSelector = document.createElement('div');
-                sheetSelector.className = 'sheet-selector';
-                sheetSelector.style.cssText = 'margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;';
-                sheetSelector.innerHTML = '<span style="font-size:13px;color:#555;">시트 선택:</span>';
-                const sel = document.createElement('select');
-                sel.style.cssText = 'padding:6px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer;';
-                window._sheetNames.forEach((name, idx) => {
-                    const opt = document.createElement('option');
-                    opt.value = idx;
-                    opt.textContent = name;
-                    if (idx === window._currentSheetIdx) opt.selected = true;
-                    sel.appendChild(opt);
-                });
-                sel.addEventListener('click', (e) => e.stopPropagation());
-                sel.addEventListener('change', () => {
-                    window._currentSheetIdx = parseInt(sel.value);
-                    loadSheetData(window._workbookCache, window._sheetNames[window._currentSheetIdx]);
-                    setupAfterLoad();
-                    showToast(`"${window._sheetNames[window._currentSheetIdx]}" 시트: ${formatNumber(allData.length)}건 로드 완료`);
-                });
-                sheetSelector.addEventListener('click', (e) => e.stopPropagation());
-                sheetSelector.appendChild(sel);
-                uploadArea.appendChild(sheetSelector);
-            }
+            renderSheetSelector(uploadArea);
 
             setupAfterLoad();
             showToast(`${formatNumber(allData.length)}건의 데이터가 로드되었습니다.`);
@@ -843,6 +889,66 @@
             if (row.every(c => !c.trim())) continue;
             allData.push(row);
         }
+    }
+
+    function renderSheetSelector(container) {
+        const oldSelector = container.querySelector('.sheet-selector');
+        if (oldSelector) oldSelector.remove();
+
+        if (!window._sheetNames || window._sheetNames.length <= 1) return;
+
+        const selector = document.createElement('div');
+        selector.className = 'sheet-selector';
+
+        const label = document.createElement('div');
+        label.className = 'sheet-selector-label';
+        label.textContent = '항목 선택';
+        selector.appendChild(label);
+
+        const help = document.createElement('div');
+        help.className = 'sheet-selector-help';
+        help.textContent = '아래 항목에서 조회 대상을 선택해 주세요';
+        selector.appendChild(help);
+
+        const list = document.createElement('div');
+        list.className = 'sheet-box-list';
+
+        window._sheetNames.forEach((name, idx) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `sheet-box-btn ${idx === window._currentSheetIdx ? 'active' : ''}`;
+            btn.textContent = name;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (idx === window._currentSheetIdx) return;
+                window._currentSheetIdx = idx;
+                loadSheetData(window._workbookCache, window._sheetNames[idx]);
+                setupAfterLoad();
+                renderSheetSelector(container);
+                showToast(`"${window._sheetNames[idx]}" 시트: ${formatNumber(allData.length)}건 로드 완료`);
+            });
+            list.appendChild(btn);
+        });
+
+        selector.addEventListener('click', (e) => e.stopPropagation());
+        selector.appendChild(list);
+        container.appendChild(selector);
+    }
+
+    // If a legacy select-based sheet selector exists, convert it to box buttons.
+    function convertLegacySheetSelectors() {
+        document.querySelectorAll('.sheet-selector').forEach(selector => {
+            const selectEl = selector.querySelector('select');
+            if (!selectEl) return;
+
+            const names = Array.from(selectEl.options).map(opt => opt.textContent || '');
+            const selectedIdx = selectEl.selectedIndex >= 0 ? selectEl.selectedIndex : 0;
+            if (names.length <= 1) return;
+
+            window._sheetNames = names;
+            window._currentSheetIdx = selectedIdx;
+            renderSheetSelector(selector.parentElement || uploadArea);
+        });
     }
 
     // Parse CSV (handles quoted fields with newlines/commas)
@@ -1181,34 +1287,11 @@
                 uploadArea.style.display = 'block';
                 uploadArea.classList.add('loaded');
                 let loadedHtml = `
-                    <div class="icon">✅</div>
-                    <h2>데이터 자동 로드 완료</h2>
+                    <div class="loaded-character" aria-label="검색 아이콘">🔍</div>
                 `;
 
-                // Sheet selector for Excel
-                if (window._sheetNames && window._sheetNames.length > 1) {
-                    loadedHtml += '<div class="sheet-selector" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;">';
-                    loadedHtml += '<span style="font-size:13px;color:#555;">시트 선택:</span>';
-                    loadedHtml += '<select id="autoSheetSelect" style="padding:6px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer;">';
-                    window._sheetNames.forEach((name, idx) => {
-                        loadedHtml += `<option value="${idx}" ${idx === 0 ? 'selected' : ''}>${escapeHtml(name)}</option>`;
-                    });
-                    loadedHtml += '</select></div>';
-                }
-
                 uploadArea.innerHTML = loadedHtml;
-
-                // Sheet selector event
-                const autoSheetSel = document.getElementById('autoSheetSelect');
-                if (autoSheetSel) {
-                    autoSheetSel.addEventListener('click', (e) => e.stopPropagation());
-                    autoSheetSel.addEventListener('change', () => {
-                        window._currentSheetIdx = parseInt(autoSheetSel.value);
-                        loadSheetData(window._workbookCache, window._sheetNames[window._currentSheetIdx]);
-                        setupAfterLoad();
-                        showToast(`"${window._sheetNames[window._currentSheetIdx]}" 시트: ${formatNumber(allData.length)}건`);
-                    });
-                }
+                renderSheetSelector(uploadArea);
 
                 setupAfterLoad();
                 showToast(`데이터 ${formatNumber(allData.length)}건이 자동으로 로드되었습니다.`);
@@ -1226,6 +1309,7 @@
 
     // Try auto-load on page open
     tryAutoLoad();
+    setTimeout(convertLegacySheetSelectors, 0);
 })();
 </script>
 
