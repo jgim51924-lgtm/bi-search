@@ -204,6 +204,7 @@
             color: #3949ab;
             font-size: 13px;
             font-family: inherit;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.18s ease;
             box-shadow: 0 1px 2px rgba(0,0,0,0.06);
@@ -223,10 +224,117 @@
 
         .sheet-box-btn.active {
             border-color: #3f51b5;
-            background: #3f51b5;
-            color: #fff;
-            font-weight: 600;
+            background: #e8edff;
+            color: #3949ab;
+            font-weight: 700;
             box-shadow: 0 2px 8px rgba(63,81,181,0.25);
+        }
+
+        .sheet-tool-link {
+            min-width: 140px;
+            padding: 9px 14px;
+            border: 1px solid #9aa0b5;
+            border-radius: 10px;
+            background: #fff;
+            color: #3949ab;
+            font-size: 13px;
+            font-family: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.18s ease;
+        }
+
+        .sheet-tool-link:hover {
+            background: #f3f5fa;
+            border-color: #4d5a85;
+        }
+
+        .sheet-tool-link.active {
+            border-color: #3f51b5;
+            background: #e8edff;
+            color: #3949ab;
+            box-shadow: 0 2px 8px rgba(63,81,181,0.25);
+        }
+
+        /* In-page fixed viewer */
+        .fixed-viewer-section {
+            display: none;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+            padding: 18px;
+            margin-bottom: 20px;
+        }
+
+        .fixed-viewer-section.visible { display: block; }
+
+        .fixed-viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .fixed-viewer-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #2f3f80;
+        }
+
+        .fixed-viewer-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .fixed-viewer-select {
+            padding: 9px 12px;
+            border: 1px solid #ccd3e7;
+            border-radius: 8px;
+            min-width: 230px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .fixed-viewer-input {
+            padding: 9px 12px;
+            border: 1px solid #ccd3e7;
+            border-radius: 8px;
+            min-width: 240px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .fixed-viewer-stats {
+            font-size: 13px;
+            color: #5f6780;
+            margin-bottom: 10px;
+        }
+
+        .fixed-viewer-scroll {
+            max-height: 60vh;
+            overflow: auto;
+            border: 1px solid #eef1f7;
+            border-radius: 10px;
+        }
+
+        .fixed-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .fixed-tag {
+            font-size: 12px;
+            background: #eef2ff;
+            color: #304cad;
+            border: 1px solid #d6def5;
+            border-radius: 999px;
+            padding: 2px 8px;
         }
 
         .btn {
@@ -634,6 +742,32 @@
         </div>
     </div>
 
+    <div class="fixed-viewer-section" id="fixedViewerSection">
+        <div class="fixed-viewer-header">
+        </div>
+        <div class="fixed-viewer-row">
+            <select id="fixedFunctionSelect" class="fixed-viewer-select"></select>
+            <input type="text" id="fixedSearchInput" class="fixed-viewer-input" placeholder="검색어 입력">
+            <button class="btn btn-export" id="fixedExportBtn">📥 결과 내보내기</button>
+        </div>
+        <div class="fixed-viewer-stats" id="fixedViewerStats"></div>
+        <div class="fixed-viewer-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:60px;">No.</th>
+                        <th style="width:120px;">구분</th>
+                        <th style="width:180px;">대시보드</th>
+                        <th style="width:180px;">필드명</th>
+                        <th>함수(계산된필드)</th>
+                        <th style="width:280px;">필드 태그</th>
+                    </tr>
+                </thead>
+                <tbody id="fixedViewerBody"></tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Table -->
     <div class="table-container" id="tableContainer">
         <div class="table-scroll">
@@ -688,10 +822,18 @@
     const tableHead = document.getElementById('tableHead');
     const tableBody = document.getElementById('tableBody');
     const pagination = document.getElementById('pagination');
+    const fixedViewerSection = document.getElementById('fixedViewerSection');
+    const fixedFunctionSelect = document.getElementById('fixedFunctionSelect');
+    const fixedSearchInput = document.getElementById('fixedSearchInput');
+    const fixedViewerStats = document.getElementById('fixedViewerStats');
+    const fixedViewerBody = document.getElementById('fixedViewerBody');
+    const fixedExportBtn = document.getElementById('fixedExportBtn');
     const perPageSelect = document.getElementById('perPageSelect');
     const modalOverlay = document.getElementById('modalOverlay');
     const modalBody = document.getElementById('modalBody');
     const modalClose = document.getElementById('modalClose');
+    let fixedRecords = [];
+    let fixedFiltered = [];
 
     // File Upload Events
     uploadArea.addEventListener('click', (e) => {
@@ -730,6 +872,9 @@
         currentPage = 1;
         renderTable();
     });
+    fixedFunctionSelect.addEventListener('change', renderFixedFilteredRows);
+    fixedSearchInput.addEventListener('input', renderFixedFilteredRows);
+    fixedExportBtn.addEventListener('click', exportFixedResults);
 
     // Modal Events
     modalClose.addEventListener('click', () => modalOverlay.classList.remove('visible'));
@@ -912,23 +1057,35 @@
 
         const list = document.createElement('div');
         list.className = 'sheet-box-list';
+        const isFixedMode = fixedViewerSection.classList.contains('visible');
 
         window._sheetNames.forEach((name, idx) => {
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = `sheet-box-btn ${idx === window._currentSheetIdx ? 'active' : ''}`;
+            btn.className = `sheet-box-btn ${(!isFixedMode && idx === window._currentSheetIdx) ? 'active' : ''}`;
             btn.textContent = name;
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (idx === window._currentSheetIdx) return;
                 window._currentSheetIdx = idx;
                 loadSheetData(window._workbookCache, window._sheetNames[idx]);
+                fixedViewerSection.classList.remove('visible');
                 setupAfterLoad();
                 renderSheetSelector(container);
                 showToast(`"${window._sheetNames[idx]}" 시트: ${formatNumber(allData.length)}건 로드 완료`);
             });
             list.appendChild(btn);
         });
+
+        const toolBtn = document.createElement('button');
+        toolBtn.type = 'button';
+        toolBtn.className = `sheet-tool-link ${fixedViewerSection.classList.contains('visible') ? 'active' : ''}`;
+        toolBtn.textContent = '함수(산식) 현황';
+        toolBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            activateFixedViewer();
+        });
+        list.appendChild(toolBtn);
 
         selector.addEventListener('click', (e) => e.stopPropagation());
         selector.appendChild(list);
@@ -1236,6 +1393,267 @@
 
     function formatNumber(n) {
         return n.toLocaleString('ko-KR');
+    }
+
+    function normalizeHeader(v) {
+        return String(v || '')
+            .replace(/\uFEFF/g, '')
+            .toLowerCase()
+            .replace(/\s+/g, '')
+            .replace(/[()_\-]/g, '');
+    }
+
+    function findHeaderByKeywords(keywordList) {
+        return headers.findIndex((h) => {
+            const nh = normalizeHeader(h);
+            return keywordList.some(k => {
+                const nk = normalizeHeader(k);
+                return nh.includes(nk) || nk.includes(nh);
+            });
+        });
+    }
+
+    function findHeaderExactInSource(sourceHeaders, headerName) {
+        const target = normalizeHeader(headerName);
+        return sourceHeaders.findIndex(h => normalizeHeader(h) === target);
+    }
+
+    function findHeaderByKeywordsInSource(sourceHeaders, keywordList) {
+        return sourceHeaders.findIndex((h) => {
+            const nh = normalizeHeader(h);
+            return keywordList.some(k => {
+                const nk = normalizeHeader(k);
+                return nh.includes(nk) || nk.includes(nh);
+            });
+        });
+    }
+
+    function activateFixedViewer() {
+        let sourceHeaders = headers;
+        let sourceRows = allData;
+
+        // Always analyze formulas from "대시보드" sheet for fixed viewer.
+        if (window._workbookCache && window._sheetNames && window._sheetNames.length > 0) {
+            const dashboardSheet = window._sheetNames.find(n => String(n).trim() === '대시보드');
+            if (!dashboardSheet) {
+                showToast('대시보드 시트를 찾지 못했습니다.');
+                return;
+            }
+            const dashboardData = getSheetDataset(window._workbookCache, dashboardSheet);
+            sourceHeaders = dashboardData.headers;
+            sourceRows = dashboardData.rows;
+        }
+
+        const formulaIdx = findHeaderByKeywordsInSource(sourceHeaders, ['함수(계산된필드)', '함수', '산식', '계산식', 'formula', 'expression']);
+        const dashboardIdx = findHeaderByKeywordsInSource(sourceHeaders, ['대시보드명', '대시보드', 'dashboard']);
+        const dataNameIdx = findHeaderByKeywordsInSource(sourceHeaders, ['데이터명', 'data name']);
+        const dataPathIdx = findHeaderByKeywordsInSource(sourceHeaders, ['데이터경로', 'data path', 'path']);
+        const categoryIdx = findHeaderByKeywordsInSource(sourceHeaders, ['구분', '분류', 'category']);
+
+        // Field name must prefer exact "필드명" (avoid matching "필드종류")
+        let fieldIdx = findHeaderExactInSource(sourceHeaders, '필드명');
+        if (fieldIdx < 0) fieldIdx = findHeaderExactInSource(sourceHeaders, '계산필드명');
+        if (fieldIdx < 0) fieldIdx = findHeaderByKeywordsInSource(sourceHeaders, ['필드명', '계산필드명']);
+
+        if (formulaIdx < 0) {
+            showToast('함수(계산된필드) 컬럼을 찾지 못했습니다.');
+            return;
+        }
+
+        const counter = new Map();
+        fixedRecords = [];
+        sourceRows.forEach((row) => {
+            const formula = (row[formulaIdx] || '').trim();
+            if (!formula) return;
+            const funcs = extractFunctionsFromFormula(formula);
+            if (!funcs.length) return;
+            const tags = extractFieldTagsFromFormula(formula);
+            const rec = {
+                category: resolveCategoryValue(row, categoryIdx),
+                dashboard: resolveDashboardName(row, dashboardIdx, dataNameIdx, dataPathIdx),
+                fieldName: fieldIdx >= 0 ? (row[fieldIdx] || '') : '',
+                formula,
+                funcs,
+                tags
+            };
+            if (!rec.fieldName && rec.tags.length > 0) rec.fieldName = rec.tags[0];
+            fixedRecords.push(rec);
+            funcs.forEach(fn => counter.set(fn, (counter.get(fn) || 0) + 1));
+        });
+
+        const sorted = Array.from(counter.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        fixedFunctionSelect.innerHTML = '';
+        sorted.forEach(([name, cnt]) => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = `${name} (${formatNumber(cnt)})`;
+            fixedFunctionSelect.appendChild(opt);
+        });
+
+        if (sorted.length === 0) {
+            showToast('조회 가능한 함수 데이터가 없습니다.');
+            return;
+        }
+
+        searchSection.classList.remove('visible');
+        tableContainer.classList.remove('visible');
+        fixedViewerSection.classList.add('visible');
+        fixedSearchInput.value = '';
+        renderSheetSelector(uploadArea);
+        renderFixedFilteredRows();
+    }
+
+    function getSheetDataset(workbook, sheetName) {
+        const sheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+
+        let headerIdx = 0;
+        for (let i = 0; i < Math.min(10, jsonData.length); i++) {
+            const nonEmpty = (jsonData[i] || []).filter(c => c !== undefined && c !== null && String(c).trim() !== '').length;
+            if (nonEmpty >= 3) {
+                headerIdx = i;
+                break;
+            }
+        }
+
+        const outHeaders = (jsonData[headerIdx] || []).map(h => String(h).trim());
+        while (outHeaders.length > 0 && !outHeaders[outHeaders.length - 1]) {
+            outHeaders.pop();
+        }
+
+        const outRows = [];
+        for (let i = headerIdx + 1; i < jsonData.length; i++) {
+            const rawRow = jsonData[i] || [];
+            const row = [];
+            for (let j = 0; j < outHeaders.length; j++) {
+                row.push(rawRow[j] !== undefined && rawRow[j] !== null ? String(rawRow[j]) : '');
+            }
+            if (row.every(c => !c.trim())) continue;
+            outRows.push(row);
+        }
+
+        return { headers: outHeaders, rows: outRows };
+    }
+
+    function renderFixedFilteredRows() {
+        const selected = fixedFunctionSelect.value;
+        const keyword = (fixedSearchInput.value || '').trim().toLowerCase();
+
+        fixedFiltered = fixedRecords.filter(r => {
+            if (!r.funcs.includes(selected)) return false;
+            if (!keyword) return true;
+
+            const fieldText = String(r.fieldName || '').toLowerCase();
+            const functionText = (r.funcs || []).join(' ').toLowerCase();
+            const formulaText = String(r.formula || '').toLowerCase();
+
+            return fieldText.includes(keyword) || functionText.includes(keyword) || formulaText.includes(keyword);
+        });
+        const keywordInfo = keyword ? ` | 검색: "${fixedSearchInput.value.trim()}"` : '';
+        fixedViewerStats.textContent = `선택 함수: ${selected} | 매칭 산식: ${formatNumber(fixedFiltered.length)}건${keywordInfo}`;
+
+        if (fixedFiltered.length === 0) {
+            fixedViewerBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999;padding:24px;">조회 결과가 없습니다.</td></tr>';
+            return;
+        }
+
+        let html = '';
+        fixedFiltered.forEach((r, idx) => {
+            const tagsHtml = r.tags.length
+                ? `<div class="fixed-tags">${r.tags.map(t => `<span class="fixed-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+                : '<span style="color:#999;">-</span>';
+            html += `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td>${escapeHtml(r.category || '-')}</td>
+                    <td>${escapeHtml(r.dashboard)}</td>
+                    <td>${escapeHtml(r.fieldName)}</td>
+                    <td>${escapeHtml(r.formula)}</td>
+                    <td>${tagsHtml}</td>
+                </tr>
+            `;
+        });
+        fixedViewerBody.innerHTML = html;
+    }
+
+    function exportFixedResults() {
+        if (!fixedFiltered.length) {
+            showToast('내보낼 고정형 조회 결과가 없습니다.');
+            return;
+        }
+        const selected = fixedFunctionSelect.value || '';
+        let csv = '\uFEFF함수,구분,대시보드명,필드명,함수(계산된필드),필드태그\n';
+        fixedFiltered.forEach(r => {
+            csv += [
+                `"${selected.replace(/"/g, '""')}"`,
+                `"${String(r.category || '').replace(/"/g, '""')}"`,
+                `"${String(r.dashboard).replace(/"/g, '""')}"`,
+                `"${String(r.fieldName).replace(/"/g, '""')}"`,
+                `"${String(r.formula).replace(/"/g, '""')}"`,
+                `"${String(r.tags.join(' | ')).replace(/"/g, '""')}"`
+            ].join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `고정형조회_${selected}_${new Date().toISOString().slice(0,10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`${formatNumber(fixedFiltered.length)}건을 내보냈습니다.`);
+    }
+
+    function extractFunctionsFromFormula(formula) {
+        const out = [];
+        const seen = new Set();
+        const regex = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
+        let m;
+        while ((m = regex.exec(formula)) !== null) {
+            const fn = m[1].toUpperCase();
+            if (!seen.has(fn)) {
+                seen.add(fn);
+                out.push(fn);
+            }
+        }
+        return out;
+    }
+
+    function extractFieldTagsFromFormula(formula) {
+        const out = [];
+        const seen = new Set();
+        const regex = /\[([^\]]+)\]/g;
+        let m;
+        while ((m = regex.exec(formula)) !== null) {
+            const tag = m[1].trim();
+            if (tag && !seen.has(tag)) {
+                seen.add(tag);
+                out.push(tag);
+            }
+        }
+        return out;
+    }
+
+    function resolveCategoryValue(row, categoryIdx) {
+        if (categoryIdx < 0) return '';
+        return String(row[categoryIdx] || '').trim();
+    }
+
+    function resolveDashboardName(row, dashboardIdx, dataNameIdx, dataPathIdx) {
+        const pick = (idx) => idx >= 0 ? String(row[idx] || '').trim() : '';
+
+        const direct = pick(dashboardIdx);
+        if (direct) return direct;
+
+        const dataName = pick(dataNameIdx);
+        if (dataName) return dataName;
+
+        const dataPath = pick(dataPathIdx);
+        if (dataPath) {
+            const parts = dataPath.split('/').map(s => s.trim()).filter(Boolean);
+            if (parts.length > 0) return parts[parts.length - 1];
+        }
+
+        return '-';
     }
 
     function showToast(msg) {
