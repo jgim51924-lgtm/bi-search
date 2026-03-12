@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BI 데이터셋 검색</title>
+    <title>롯데웰푸드 BI 데이터셋 검색</title>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <style>
         * {
@@ -32,9 +32,19 @@
 
         .header h1 {
             font-size: 22px;
-            font-weight: 700;
+            font-weight: 600;
+            margin-bottom: 0;
+            letter-spacing: 0;
+            font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;
+        }
+
+        .header-title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            width: 100%;
             margin-bottom: 4px;
-            letter-spacing: -0.5px;
         }
 
         .header p {
@@ -313,6 +323,17 @@
             font-size: 13px;
             color: #5f6780;
             margin-bottom: 10px;
+        }
+
+        .fixed-viewer-desc {
+            font-size: 13px;
+            color: #3f4a66;
+            background: #f7f9ff;
+            border: 1px solid #dfe5fb;
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            line-height: 1.5;
         }
 
         .fixed-viewer-scroll {
@@ -686,8 +707,9 @@
 <body>
 
 <div class="header">
-    <h1>BI 데이터셋 검색 시스템</h1>
-    <p>CSV / Excel 파일을 업로드하여 데이터를 검색하고 필터링하세요</p>
+    <div class="header-title-row">
+        <h1>롯데웰푸드 BI 데이터셋 검색 시스템</h1>
+    </div>
 </div>
 
 <div class="container">
@@ -750,6 +772,7 @@
             <input type="text" id="fixedSearchInput" class="fixed-viewer-input" placeholder="검색어 입력">
             <button class="btn btn-export" id="fixedExportBtn">📥 결과 내보내기</button>
         </div>
+        <div class="fixed-viewer-desc" id="fixedFunctionDesc"></div>
         <div class="fixed-viewer-stats" id="fixedViewerStats"></div>
         <div class="fixed-viewer-scroll">
             <table>
@@ -825,6 +848,7 @@
     const fixedViewerSection = document.getElementById('fixedViewerSection');
     const fixedFunctionSelect = document.getElementById('fixedFunctionSelect');
     const fixedSearchInput = document.getElementById('fixedSearchInput');
+    const fixedFunctionDesc = document.getElementById('fixedFunctionDesc');
     const fixedViewerStats = document.getElementById('fixedViewerStats');
     const fixedViewerBody = document.getElementById('fixedViewerBody');
     const fixedExportBtn = document.getElementById('fixedExportBtn');
@@ -1537,6 +1561,7 @@
 
     function renderFixedFilteredRows() {
         const selected = fixedFunctionSelect.value;
+        renderFixedFunctionDescription(selected);
         const keyword = (fixedSearchInput.value || '').trim().toLowerCase();
 
         fixedFiltered = fixedRecords.filter(r => {
@@ -1576,6 +1601,129 @@
         fixedViewerBody.innerHTML = html;
     }
 
+    function renderFixedFunctionDescription(funcName) {
+        const fn = String(funcName || '').toUpperCase();
+        const info = getFunctionInfo(fn);
+        fixedFunctionDesc.innerHTML =
+            `<strong>${escapeHtml(fn || '-')}</strong> : ${escapeHtml(info.desc)}<br>` +
+            `<span style="color:#5f6780;">사용 예시: ${escapeHtml(info.example)}</span>`;
+    }
+
+    function getFunctionInfo(funcName) {
+        const infos = {
+            // Aggregate
+            'SUM': { desc: '숫자 값을 모두 더해 총합을 계산합니다.', example: 'SUM([매출액])' },
+            'AVG': { desc: '숫자 값의 평균(산술평균)을 계산합니다.', example: 'AVG([평점])' },
+            'MIN': { desc: '가장 작은 값을 반환합니다.', example: 'MIN([기준년월(Date)])' },
+            'MAX': { desc: '가장 큰 값을 반환합니다.', example: 'MAX([기준년월(Date)])' },
+            'COUNT': { desc: '값이 존재하는 행(또는 항목) 개수를 계산합니다.', example: 'COUNT([주문ID])' },
+            'COUNTD': { desc: '중복을 제거한 고유 값 개수를 계산합니다.', example: 'COUNTD([고객ID])' },
+            'MEDIAN': { desc: '숫자 값의 중앙값(중위수)을 계산합니다.', example: 'MEDIAN([단가])' },
+            'STDEV': { desc: '표본 표준편차를 계산합니다.', example: 'STDEV([매출액])' },
+            'STDEVP': { desc: '모집단 표준편차를 계산합니다.', example: 'STDEVP([매출액])' },
+            'VAR': { desc: '표본 분산을 계산합니다.', example: 'VAR([매출액])' },
+            'VARP': { desc: '모집단 분산을 계산합니다.', example: 'VARP([매출액])' },
+            'ATTR': { desc: '집계 수준에서 단일 값이면 해당 값을, 다르면 * 형태로 표시합니다.', example: 'ATTR([부서명])' },
+
+            // Logical
+            'IF': { desc: '조건이 참/거짓일 때 서로 다른 결과를 반환합니다.', example: "IF [구분] = '영업' THEN [매출] END" },
+            'IIF': { desc: '한 줄 조건식으로 참/거짓 결과를 빠르게 분기합니다.', example: "IIF([목표달성] = 1, '달성', '미달성')" },
+            'CASE': { desc: '여러 조건을 순서대로 비교해 매칭되는 결과를 반환합니다.', example: "CASE [구분] WHEN '영업' THEN 1 ELSE 0 END" },
+            'AND': { desc: '여러 조건이 모두 참인지 확인합니다.', example: '[매출] > 0 AND [수량] > 0' },
+            'OR': { desc: '여러 조건 중 하나라도 참인지 확인합니다.', example: "[구분] = '영업' OR [구분] = '임원'" },
+            'NOT': { desc: '조건 결과를 반대로 뒤집습니다.', example: 'NOT ISNULL([담당자])' },
+            'DATEPART': { desc: '날짜에서 연/월/일 같은 특정 단위를 추출합니다.', example: "DATEPART('month', [기준년월(Date)])" },
+            'DATETRUNC': { desc: '날짜를 특정 단위(연/월 등)의 시작 시점으로 자릅니다.', example: "DATETRUNC('year', [조회일])" },
+            'DATEDIFF': { desc: '두 날짜 사이의 차이를 지정한 단위로 계산합니다.', example: "DATEDIFF('day', [시작일], [종료일])" },
+            'ZN': { desc: 'NULL 값을 0으로 치환합니다.', example: 'ZN([매출액])' },
+            'ISNULL': { desc: '값이 NULL인지 여부를 확인합니다.', example: 'ISNULL([부서명])' },
+            'IFNULL': { desc: '값이 NULL이면 대체 값을 반환합니다.', example: "IFNULL([담당자명], '미지정')" },
+            'NULLIF': { desc: '두 값이 같으면 NULL, 다르면 첫 번째 값을 반환합니다.', example: 'NULLIF([값A], [값B])' },
+
+            // String
+            'CONTAINS': { desc: '문자열에 특정 텍스트가 포함되는지 확인합니다.', example: "CONTAINS([데이터경로], 'SELF BI')" },
+            'STARTSWITH': { desc: '문자열이 특정 텍스트로 시작하는지 확인합니다.', example: "STARTSWITH([코드], 'A-')" },
+            'ENDSWITH': { desc: '문자열이 특정 텍스트로 끝나는지 확인합니다.', example: "ENDSWITH([코드], '-01')" },
+            'LEFT': { desc: '문자열의 왼쪽에서 지정 길이만큼 추출합니다.', example: 'LEFT([사번], 3)' },
+            'RIGHT': { desc: '문자열의 오른쪽에서 지정 길이만큼 추출합니다.', example: 'RIGHT([사번], 4)' },
+            'MID': { desc: '문자열의 중간 위치에서 지정 길이만큼 추출합니다.', example: 'MID([데이터경로], 1, 10)' },
+            'LEN': { desc: '문자열 길이를 반환합니다.', example: 'LEN([필드명])' },
+            'LOWER': { desc: '문자열을 소문자로 변환합니다.', example: 'LOWER([부서코드])' },
+            'UPPER': { desc: '문자열을 대문자로 변환합니다.', example: 'UPPER([부서코드])' },
+            'TRIM': { desc: '문자열 앞뒤 공백을 제거합니다.', example: 'TRIM([필드명])' },
+            'REPLACE': { desc: '문자열의 일부 텍스트를 다른 텍스트로 치환합니다.', example: "REPLACE([부서명], '팀', '조')" },
+            'SPLIT': { desc: '구분자를 기준으로 문자열 일부를 분리해 반환합니다.', example: "SPLIT([데이터경로], '/', 1)" },
+            'FIND': { desc: '문자열에서 특정 텍스트의 위치를 찾습니다.', example: "FIND([데이터경로], 'SELF BI')" },
+            'ASCII': { desc: '문자의 ASCII 코드 값을 반환합니다.', example: "ASCII('A')" },
+            'CHAR': { desc: 'ASCII 코드에 해당하는 문자를 반환합니다.', example: 'CHAR(65)' },
+
+            // Number
+            'ABS': { desc: '절대값을 반환합니다.', example: 'ABS([차이값])' },
+            'CEILING': { desc: '값을 올림하여 가장 가까운 정수를 반환합니다.', example: 'CEILING([평균점수])' },
+            'FLOOR': { desc: '값을 내림하여 가장 가까운 정수를 반환합니다.', example: 'FLOOR([평균점수])' },
+            'ROUND': { desc: '숫자를 지정 자릿수로 반올림합니다.', example: 'ROUND([달성률], 2)' }
+            ,
+            'POWER': { desc: '지수 연산(거듭제곱) 결과를 반환합니다.', example: 'POWER([값], 2)' },
+            'SQRT': { desc: '제곱근을 반환합니다.', example: 'SQRT([분산])' },
+            'EXP': { desc: '자연상수 e의 거듭제곱 값을 반환합니다.', example: 'EXP([값])' },
+            'LN': { desc: '자연로그 값을 반환합니다.', example: 'LN([값])' },
+            'LOG': { desc: '로그 값을 반환합니다.', example: 'LOG([값])' },
+            'DIV': { desc: '정수 나눗셈 결과를 반환합니다.', example: 'DIV([매출], [수량])' },
+            'INT': { desc: '소수점을 버리고 정수 부분을 반환합니다.', example: 'INT([단가])' },
+            'SIGN': { desc: '값의 부호를 반환합니다(-1, 0, 1).', example: 'SIGN([증감액])' },
+
+            // Date
+            'DATE': { desc: '값을 날짜 타입으로 변환합니다.', example: 'DATE([기준일자문자열])' },
+            'DATEPARSE': { desc: '포맷 문자열을 사용해 텍스트를 날짜로 파싱합니다.', example: "DATEPARSE('yyyy-MM-dd', [일자텍스트])" },
+            'DATENAME': { desc: '날짜 단위 이름(월명, 요일명 등)을 문자열로 반환합니다.', example: "DATENAME('month', [기준일자])" },
+            'DATEADD': { desc: '날짜에 지정 단위를 더하거나 빼서 새 날짜를 반환합니다.', example: "DATEADD('month', 1, [기준일자])" },
+            'DAY': { desc: '날짜에서 일(day) 값을 추출합니다.', example: 'DAY([기준일자])' },
+            'MONTH': { desc: '날짜에서 월(month) 값을 추출합니다.', example: 'MONTH([기준일자])' },
+            'YEAR': { desc: '날짜에서 연(year) 값을 추출합니다.', example: 'YEAR([기준일자])' },
+            'NOW': { desc: '현재 시스템 날짜/시간을 반환합니다.', example: 'NOW()' },
+            'TODAY': { desc: '현재 날짜를 반환합니다.', example: 'TODAY()' },
+            'MAKEDATE': { desc: '연/월/일 값을 이용해 날짜(Date)를 생성합니다.', example: 'MAKEDATE([연도], [월], [일])' },
+            'MAKEDATETIME': { desc: '날짜와 시간을 결합해 DateTime 값을 생성합니다.', example: 'MAKEDATETIME([날짜], [시간])' },
+
+            // Type conversion
+            'STR': { desc: '숫자/날짜 등을 문자열로 변환합니다.', example: 'STR([사번])' },
+            'FLOAT': { desc: '값을 실수(float) 타입으로 변환합니다.', example: 'FLOAT([문자형숫자])' },
+            'BOOL': { desc: '값을 불리언(true/false) 타입으로 변환합니다.', example: 'BOOL([조건식])' },
+
+            // Table calculation / analytic
+            'WINDOW_SUM': { desc: '현재 윈도우 범위의 합계를 계산합니다.', example: 'WINDOW_SUM(SUM([매출]))' },
+            'WINDOW_AVG': { desc: '현재 윈도우 범위의 평균을 계산합니다.', example: 'WINDOW_AVG(SUM([매출]))' },
+            'WINDOW_MIN': { desc: '현재 윈도우 범위의 최소값을 계산합니다.', example: 'WINDOW_MIN(SUM([매출]))' },
+            'WINDOW_MAX': { desc: '현재 윈도우 범위의 최대값을 계산합니다.', example: 'WINDOW_MAX(SUM([매출]))' },
+            'WINDOW_COUNT': { desc: '현재 윈도우 범위의 항목 개수를 계산합니다.', example: 'WINDOW_COUNT([고객ID])' },
+            'WINDOW_MEDIAN': { desc: '현재 윈도우 범위의 중앙값을 계산합니다.', example: 'WINDOW_MEDIAN(SUM([매출]))' },
+            'RUNNING_SUM': { desc: '누적 합계를 계산합니다.', example: 'RUNNING_SUM(SUM([매출]))' },
+            'RUNNING_AVG': { desc: '누적 평균을 계산합니다.', example: 'RUNNING_AVG(SUM([매출]))' },
+            'RUNNING_MIN': { desc: '누적 최소값을 계산합니다.', example: 'RUNNING_MIN(SUM([매출]))' },
+            'RUNNING_MAX': { desc: '누적 최대값을 계산합니다.', example: 'RUNNING_MAX(SUM([매출]))' },
+            'RUNNING_COUNT': { desc: '누적 건수를 계산합니다.', example: 'RUNNING_COUNT([고객ID])' },
+            'RANK': { desc: '순위를 계산합니다(동순위 건너뜀).', example: 'RANK(SUM([매출]))' },
+            'RANK_DENSE': { desc: '밀집 순위를 계산합니다(동순위 다음 번호 연속).', example: 'RANK_DENSE(SUM([매출]))' },
+            'RANK_MODIFIED': { desc: '수정 순위를 계산합니다.', example: 'RANK_MODIFIED(SUM([매출]))' },
+            'RANK_PERCENTILE': { desc: '백분위 순위를 계산합니다.', example: 'RANK_PERCENTILE(SUM([매출]))' },
+            'INDEX': { desc: '현재 파티션 내 행 인덱스를 반환합니다.', example: 'INDEX()' },
+            'FIRST': { desc: '현재 행에서 파티션 첫 행까지의 오프셋을 반환합니다.', example: 'FIRST()' },
+            'LAST': { desc: '현재 행에서 파티션 마지막 행까지의 오프셋을 반환합니다.', example: 'LAST()' },
+            'LOOKUP': { desc: '지정 오프셋 위치의 값을 참조합니다.', example: 'LOOKUP(SUM([매출]), -1)' },
+            'PREVIOUS_VALUE': { desc: '이전 계산 결과 값을 참조합니다.', example: 'PREVIOUS_VALUE(0)' },
+            'TOTAL': { desc: '파티션 전체 합계를 계산합니다.', example: 'TOTAL(SUM([매출]))' },
+
+            // LOD
+            'FIXED': { desc: '뷰와 무관하게 고정된 차원 수준에서 값을 계산합니다.', example: '{ FIXED [부서] : SUM([매출]) }' },
+            'INCLUDE': { desc: '뷰의 차원에 추가 차원을 포함해 계산합니다.', example: '{ INCLUDE [고객] : SUM([매출]) }' },
+            'EXCLUDE': { desc: '뷰의 차원에서 특정 차원을 제외하고 계산합니다.', example: '{ EXCLUDE [월] : SUM([매출]) }' }
+        };
+        return infos[funcName] || {
+            desc: '선택한 함수 설명은 기본 사전에 아직 등록되지 않았습니다.',
+            example: `${funcName || 'FUNCTION'}(...)`
+        };
+    }
+
     function exportFixedResults() {
         if (!fixedFiltered.length) {
             showToast('내보낼 고정형 조회 결과가 없습니다.');
@@ -1603,13 +1751,44 @@
         showToast(`${formatNumber(fixedFiltered.length)}건을 내보냈습니다.`);
     }
 
+    const VALID_FUNCTIONS = new Set([
+        // Aggregate
+        'SUM', 'AVG', 'MIN', 'MAX', 'COUNT', 'COUNTD', 'MEDIAN', 'STDEV', 'STDEVP', 'VAR', 'VARP', 'ATTR',
+        // Number
+        'ABS', 'CEILING', 'FLOOR', 'ROUND', 'POWER', 'SQRT', 'EXP', 'LN', 'LOG', 'DIV', 'INT', 'SIGN',
+        'ZN', 'ISNULL', 'IFNULL', 'NULLIF',
+        // Logical
+        'IF', 'IIF', 'CASE', 'AND', 'OR', 'NOT', 'IFNULL',
+        // String
+        'CONTAINS', 'STARTSWITH', 'ENDSWITH', 'LEFT', 'RIGHT', 'MID', 'LEN', 'LOWER', 'UPPER', 'TRIM',
+        'REPLACE', 'SPLIT', 'FIND', 'ASCII', 'CHAR',
+        // Date
+        'DATE', 'DATEPARSE', 'DATEPART', 'DATENAME', 'DATETRUNC', 'DATEADD', 'DATEDIFF', 'DAY', 'MONTH',
+        'YEAR', 'NOW', 'TODAY', 'MAKEDATE', 'MAKEDATETIME',
+        // Type conversion
+        'STR', 'INT', 'FLOAT', 'BOOL',
+        // Table calc / analytic
+        'WINDOW_SUM', 'WINDOW_AVG', 'WINDOW_MIN', 'WINDOW_MAX', 'WINDOW_COUNT', 'WINDOW_MEDIAN',
+        'RUNNING_SUM', 'RUNNING_AVG', 'RUNNING_MIN', 'RUNNING_MAX', 'RUNNING_COUNT',
+        'RANK', 'RANK_DENSE', 'RANK_MODIFIED', 'RANK_PERCENTILE', 'INDEX', 'FIRST', 'LAST',
+        'LOOKUP', 'PREVIOUS_VALUE', 'TOTAL',
+        // LOD
+        'FIXED', 'INCLUDE', 'EXCLUDE'
+    ]);
+
     function extractFunctionsFromFormula(formula) {
         const out = [];
         const seen = new Set();
+        // Exclude field references [ ... ] and quoted text to avoid false positives.
+        const sanitized = String(formula || '')
+            .replace(/\[[^\]]*\]/g, ' ')
+            .replace(/"[^"]*"/g, ' ')
+            .replace(/'[^']*'/g, ' ');
         const regex = /([A-Za-z_][A-Za-z0-9_]*)\s*\(/g;
         let m;
-        while ((m = regex.exec(formula)) !== null) {
+        while ((m = regex.exec(sanitized)) !== null) {
             const fn = m[1].toUpperCase();
+            if (!VALID_FUNCTIONS.has(fn)) continue;
             if (!seen.has(fn)) {
                 seen.add(fn);
                 out.push(fn);
